@@ -3,7 +3,10 @@ import os
 import json
 import re
 import httpx
-from openai import OpenAI
+import time
+
+from datetime import datetime, timezone
+from openai import OpenAI, APIStatusError
 
 def parse_diff(diff_text):
     valid_lines = set()
@@ -110,18 +113,30 @@ def main():
 Вот diff. Числа в квадратных скобках [12] — это номера строк в новой версии файла. Используй ТОЛЬКО ИХ для поля "line".
 {formatted_diff}
 """
-    try:
 
+    model_name = "gemini-3.8-flash" 
+    started_at = time.perf_counter()
+
+    print(
+            f"[LLM-DIAG] {datetime.now(timezone.utc).isoformat()} "
+            f"Начало запроса. Модель: {model_name}. "
+            f"Размер промпта: {len(prompt)} символов",
+            file=sys.stderr,
+            flush=True
+        )
+
+    try:
 
         client = OpenAI(
             api_key=os.environ.get("GEMINI_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            timeout=httpx.Timeout(60.0, connect=10.0)
+            timeout=httpx.Timeout(60.0, connect=10.0),
+            max_retries=3
         )
 
     
         response = client.chat.completions.create(
-            model="gemini-3.8-flash",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "Ты — строгий код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
@@ -129,6 +144,22 @@ def main():
             response_format={"type": "json_object"},
             temperature=0.1
         )
+
+
+        elapsed = time.perf_counter() - started_at
+        usage = response.usage
+
+        print(
+            f"[LLM-DIAG] Запрос успешен. "
+            f"Время: {elapsed:.2f} сек. "
+            f"Входные токены: {usage.prompt_tokens if usage else 'unknown'}. "
+            f"Выходные токены: {usage.completion_tokens if usage else 'unknown'}. "
+            f"Request ID: {getattr(response, '_request_id', 'unknown')}. "
+            f"Response ID: {response.id}",
+            file=sys.stderr,
+            flush=True
+        )
+
         raw = response.choices[0].message.content
         
         # снятие markdown-обертки, если модель её добавила
@@ -149,6 +180,8 @@ def main():
         fallback_messages = []
         
         for c in content.get('comments', []):
+            if not isinstance(c, dict):
+                continue
             file_path = c.get('file')
             line_num = c.get('line')
             
@@ -164,8 +197,35 @@ def main():
         print(json.dumps(content))
         
     except Exception as e:
+        elapsed = time.perf_counter() - started_at
+
+        print(
+            f"[LLM-DIAG] Ошибка после {elapsed:.2f} сек.",
+            file=sys.stderr,
+            flush=True
+        )
+
+        if isinstance(e, APIStatusError):
+            print(f"[LLM-DIAG] HTTP status: {e.status_code}", file=sys.stderr)
+            print(f"[LLM-DIAG] Request ID: {e.request_id}", file=sys.stderr)
+            print(
+                f"[LLM-DIAG] Response body: {str(e.body)[:3000]}",
+                file=sys.stderr,
+                flush=True
+            )
+        else:
+            print(
+                f"[LLM-DIAG] Тип ошибки: {type(e).__name__}",
+                file=sys.stderr
+            )
+            print(f"[LLM-DIAG] Подробности: {repr(e)}", file=sys.stderr)
+
         print(f"Ошибка LLM: {e}", file=sys.stderr)
-        print(json.dumps({"summary": f"Ошибка при запросе к нейросети: {e}", "comments": []}))
+
+        print(json.dumps({
+            "summary": f"Ошибка при запросе к нейросети: {e}",
+            "comments": []
+        }))
 
 if __name__ == "__main__":
     main()
