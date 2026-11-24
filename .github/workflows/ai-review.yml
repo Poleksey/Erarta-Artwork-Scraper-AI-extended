@@ -28,7 +28,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          pip install openai
+          pip install openai httpx
           python review.py diff.txt > review.json
 
       - name: Post review
