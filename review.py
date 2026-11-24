@@ -121,7 +121,7 @@ def main():
 
     
         response = client.chat.completions.create(
-            model="models/gemini-2.5-flash",
+            model="gemini-3.8-flash",
             messages=[
                 {"role": "system", "content": "Ты — строгий код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
