@@ -20,9 +20,9 @@ def parse_diff(diff_text):
             continue
         
         if line.startswith('diff --git'):
-            match = re.search(r'b/(.+)', line)
+            match = re.match(r'^diff --git a/(.+) b/(.+)$', line)
             if match:
-                current_file = match.group(1)
+                current_file = match.group(2)
                 formatted_diff.append(f"\n=== ФАЙЛ: {current_file} ===")
             else:
                 current_file = None
