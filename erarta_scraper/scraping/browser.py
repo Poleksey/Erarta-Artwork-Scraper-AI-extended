@@ -53,10 +53,7 @@ class BrowserSession:
 
     def get(self, url: str) -> None:
         self.pace.wait()
-        try:
-            self.driver.get(url)
-        except WebDriverException as exc:
-            raise BrowserError(f"failed to open {url}") from exc
+        self.driver.get(url)
 
     def wait_css(self, selector: str, timeout: float | None = None) -> list:
         wait = WebDriverWait(self.driver, timeout or self.settings.page_wait_seconds)

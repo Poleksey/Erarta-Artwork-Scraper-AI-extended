@@ -24,6 +24,7 @@ def run_collect(
     try:
         log.info("collect: scraping %s catalog pages", pages)
         links = collect_catalog_links(session, settings, pages)
+        breakpoint()
         with session_scope(engine) as db:
             inserted = ArtworkRepository(db).enqueue_urls(links)
         log.info("collect: %s unique urls seen, %s new rows inserted", len(links), inserted)

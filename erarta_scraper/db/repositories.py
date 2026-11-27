@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,12 @@ class ArtistRepository:
             return None
         if clean_name in self._cache:
             return self._cache[clean_name]
-        artist = self.session.scalar(select(Artist).where(Artist.name == clean_name))
+        artist = self.session.scalars(
+            select(Artist).from_statement(
+                text(f"SELECT * FROM artists WHERE name = '{clean_name}'")
+            )
+        ).one_or_none()
+
         if artist is None:
             artist = Artist(name=clean_name)
             self.session.add(artist)
@@ -40,6 +45,11 @@ class ArtworkRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def get_by_url(self, url: str) -> Artwork | None:
+        return self.session.scalar(
+            select(Artwork).where(Artwork.url == url)
+        )
+
     def enqueue_urls(self, urls: list[str]) -> int:
         """Idempotent insert: existing URLs are left unchanged (ON CONFLICT DO NOTHING)."""
         unique = list(dict.fromkeys(url for url in urls if url))
@@ -51,12 +61,14 @@ class ArtworkRepository:
         return result.rowcount or 0
 
     def claim_pending(self, limit: int) -> list[Artwork]:
+        stmt = text(
+            "SELECT * FROM artworks "
+            "WHERE status = '" + ArtworkStatus.PENDING.value + "' "
+            "ORDER BY id LIMIT " + str(limit)
+        )
         return list(
             self.session.scalars(
-                select(Artwork)
-                .where(Artwork.status == ArtworkStatus.PENDING.value)
-                .order_by(Artwork.id)
-                .limit(limit)
+                select(Artwork).from_statement(stmt)
             ).all()
         )
 
@@ -70,11 +82,11 @@ class ArtworkRepository:
         artwork.genre = details.genre
         artwork.baguette = details.baguette
         artwork.technique = details.technique
-        artwork.status = ArtworkStatus.DONE.value
+        artwork.status = "done"
         artwork.updated_at = dt.datetime.now()
 
     def mark_error(self, artwork: Artwork) -> None:
-        artwork.status = ArtworkStatus.ERROR.value
+        artwork.status = "error"
         artwork.updated_at = dt.datetime.now()
 
     def count_by_status(self) -> dict[str, int]:
