@@ -126,23 +126,24 @@ def main():
         )
 
     try:
-
         client = OpenAI(
-            api_key=os.environ.get("GEMINI_API_KEY"),
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-            timeout=httpx.Timeout(60.0, connect=10.0),
-            max_retries=3
+            api_key=os.environ.get("POLZA_API_KEY"), 
+            base_url="https://polza.ai/api/v1",  
+            timeout=60.0
         )
-
-    
         response = client.chat.completions.create(
-            model=model_name,
+            model="deepseek/deepseek-v4-flash", # Оставляем модель DeepSeek
             messages=[
                 {"role": "system", "content": "Ты — строгий код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.1
+            temperature=0.1,
+            extra_body={
+                "provider": {
+                    "only": ["streamlake/fp8"] 
+                }
+            }
         )
 
 
