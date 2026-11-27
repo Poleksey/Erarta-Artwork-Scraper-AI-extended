@@ -111,7 +111,7 @@ def main():
 Верни СТРОГО JSON: {{"summary": "общий итог", "comments": [
 {
     {"file": "путь",
-     "line": число, 
+     "line": "число", 
      "severity": "error|warning", 
      "message": "текст", 
      "reason": "почему это ошибка", 
