@@ -114,7 +114,7 @@ def main():
 {formatted_diff}
 """
 
-    model_name = "gemini-3.8-flash" 
+    model_name = "DeepSeek: DeepSeek V4 Flash" 
     started_at = time.perf_counter()
 
     print(
