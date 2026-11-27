@@ -198,11 +198,19 @@ def main():
                 continue
             file_path = c.get('file')
             line_num = c.get('line')
-            
+
+            try:
+                line_num = int(line_num)
+            except (TypeError, ValueError):
+                line_num = None
+
             if (file_path, line_num) in valid_lines:
+                c['line'] = line_num
                 valid_comments.append(c)
             else:
-                fallback_messages.append(f"Файл `{file_path}`, строка {line_num}: {c.get('message')}")
+                fallback_messages.append(
+                    f"Файл `{file_path}`, строка {line_num}: {c.get('message')}"
+                )
 
         if fallback_messages:
             content['summary'] += "\n\n**Замечания вне измененного кода:**\n" + "\n".join(f"- {msg}" for msg in fallback_messages)
