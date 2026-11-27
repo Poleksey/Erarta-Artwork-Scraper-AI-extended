@@ -204,6 +204,13 @@ def main():
             except (TypeError, ValueError):
                 line_num = None
 
+            print(
+                f"[DEBUG] file={file_path!r}, "
+                f"line={line_num!r}, "
+                f"type={type(line_num).__name__}, "
+                f"valid={(file_path, line_num) in valid_lines}",
+                file=sys.stderr
+            )
             if (file_path, line_num) in valid_lines:
                 c['line'] = line_num
                 valid_comments.append(c)
