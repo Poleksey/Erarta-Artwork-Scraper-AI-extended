@@ -2,7 +2,6 @@ import sys
 import os
 import json
 import re
-import httpx
 import time
 
 from datetime import datetime, timezone
@@ -14,6 +13,7 @@ def parse_diff(diff_text):
     current_file = None
     current_line_new = 0
     
+    # Игнорирование бинарников
     for line in diff_text.splitlines():
         if line.startswith('Binary files'):
             current_file = None
@@ -30,14 +30,16 @@ def parse_diff(diff_text):
             
         if not current_file:
             continue
-
+        
+        # Получение начального номера строки из заголовка диффа
         if line.startswith('@@'):
             match = re.search(r'\+(\d+)', line)
             if match:
                 current_line_new = int(match.group(1))
             formatted_diff.append(line)
             continue
-
+        
+        # Нумерация строк для модели
         if line.startswith('+'):
             formatted_diff.append(f"[{current_line_new}] {line}")
             valid_lines.add((current_file, current_line_new))
@@ -72,6 +74,7 @@ def main():
 
     formatted_diff, valid_lines = parse_diff(raw_diff)
 
+    # Порог на размер diff
     diff_lines = [
     l for l in raw_diff.splitlines()
     if (l.startswith('+') and not l.startswith('+++'))
@@ -102,10 +105,19 @@ def main():
             instructions += "\n\n=== ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ ПРОЕКТА (AGENTS.md) ===\n"
             instructions += f.read()
 
-    # 3. Формирование промта 
+    # Формирование промта и structured output
     prompt = f"""
-Ты — код-ревьюер. Твоя задача — найти проблемы в диффе согласно инструкциям.
-Верни СТРОГО JSON: {{"summary": "общий итог", "comments": [{{"file": "путь", "line": число, "severity": "error|warning", "message": "текст", "reason": "почему это ошибка", "suggestion": "код или null"}}]}}
+Найди проблемы в диффе согласно инструкциям.
+Верни СТРОГО JSON: {{"summary": "общий итог", "comments": [
+{
+    {"file": "путь",
+     "line": число, 
+     "severity": "error|warning", 
+     "message": "текст", 
+     "reason": "почему это ошибка", 
+     "suggestion": "код или null"
+     }
+     }]}}
 
 Инструкции:
 {instructions}
@@ -180,6 +192,7 @@ def main():
         valid_comments = []
         fallback_messages = []
         
+        # Валидация номеров строк по diff
         for c in content.get('comments', []):
             if not isinstance(c, dict):
                 continue
