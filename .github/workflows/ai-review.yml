@@ -1,0 +1,83 @@
+name: ai-review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff "origin/$BASE_REF...$HEAD_SHA" \
+            -- . ':(exclude)*.lock' \
+            ':(exclude)dist/*' \
+            ':(exclude)generated/*' > diff.txt
+
+      - name: Run review
+        env:
+          POLZA_API_KEY: ${{ secrets.POLZA_API_KEY }}
+        run: |
+          pip install openai httpx
+          python review.py diff.txt > review.json
+
+      - name: Post review
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let payload = { summary: '', comments: [] };
+            
+            // Защита от падения, если Python упал до создания review.json
+            try {
+              payload = JSON.parse(fs.readFileSync('review.json', 'utf8'));
+            } catch (err) {
+              payload.summary = `Ошибка чтения review.json: ${err.message}`;
+            }
+
+            const summary = payload.summary;
+            const comments = payload.comments || [];
+            const fence = String.fromCharCode(96).repeat(3);
+            
+            const reviewPayload = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              commit_id: context.payload.pull_request.head.sha,
+              event: 'COMMENT',
+              body: summary || 'AI-ревью: замечаний нет'
+            };
+
+            // Если есть комментарии, добавляем их
+            if (comments.length > 0) {
+              reviewPayload.comments = comments.map(c => {
+                let bodyText = '**' + c.severity + '**: ' + c.message;
+                if (c.reason) bodyText += '\n*Причина:* ' + c.reason;
+                if (c.suggestion) bodyText += '\n\n' + fence + 'suggestion\n' + c.suggestion + '\n' + fence;
+                
+                let commentObj = {
+                  path: c.file,
+                  line: c.line,
+                  side: 'RIGHT',
+                  body: bodyText
+                };
+                
+                if (c.start_line) {
+                  commentObj.start_line = c.start_line;
+                  commentObj.start_side = 'RIGHT';
+                }
+                return commentObj;
+              });
+            }
+
+            await github.rest.pulls.createReview(reviewPayload);
