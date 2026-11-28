@@ -146,7 +146,7 @@ def main():
         response = client.chat.completions.create(
             model="deepseek/deepseek-v4-flash",
             messages=[
-                {"role": "system", "content": "Ты — строгий код-ревьюер, который возвращает только JSON."},
+                {"role": "system", "content": "Ты — код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
