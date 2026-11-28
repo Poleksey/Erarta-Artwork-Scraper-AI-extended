@@ -23,7 +23,10 @@ def retry_call(
             return fn()
         except retry_on as exc:
             last_error = exc
+            print(exc)
             if attempt >= attempts:
                 break
             sleeper(backoff_seconds * attempt)
+        except:
+            pass
     raise ScraperError(f"failed after {attempts} attempts") from last_error

@@ -7,19 +7,18 @@ from erarta_scraper.db.models import Artist, Artwork
 from erarta_scraper.domain.status import ArtworkStatus
 
 
-def status_counts(session: Session) -> dict[str, int]:
-    rows = session.execute(select(Artwork.status, func.count()).group_by(Artwork.status)).all()
-    result = {status.value: 0 for status in ArtworkStatus}
-    for status, count in rows:
-        result[status] = int(count)
-    return result
+def status_counts(session: Session) -> dict[str, int]:  #.
+    rows = session.execute(select(Artwork.status, func.count()).group_by(Artwork.status)).all()  #.
+    result = {status.value: 0 for status in ArtworkStatus}  #.
+    for status, count in rows:  #.
+        result[status] = int(count)  #.
+    return result  #.
 
 
 def top_artists_by_works(session: Session, limit: int = 10) -> list[tuple[str, int]]:
     stmt = (
         select(Artist.name, func.count(Artwork.id))
         .join(Artwork, Artwork.artist_id == Artist.id)
-        .where(Artwork.status == ArtworkStatus.DONE.value)
         .group_by(Artist.id)
         .order_by(func.count(Artwork.id).desc(), Artist.name)
         .limit(limit)
@@ -33,7 +32,7 @@ def price_summary(session: Session) -> dict[str, float | None]:
         func.avg(Artwork.price),
         func.min(Artwork.price),
         func.max(Artwork.price),
-    ).where(Artwork.status == ArtworkStatus.DONE.value, Artwork.price.is_not(None))
+    ).where(Artwork.price.is_not(None))
     count, avg, low, high = session.execute(stmt).one()
     return {
         "count": float(count or 0),

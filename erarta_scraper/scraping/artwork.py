@@ -8,7 +8,7 @@ from erarta_scraper.scraping.retry import retry_call
 
 
 def parse_artwork_page(browser: BrowserSession, url: str) -> ArtworkDetails:
-    browser.get(url)
+    browser.driver.get(url)
     details = details_from_text_getter(browser.text_or_empty)
     if not details.title and not details.artist_name:
         raise ParseError(f"empty artwork page: {url}")

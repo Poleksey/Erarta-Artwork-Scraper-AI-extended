@@ -6,6 +6,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = BASE_DIR / "art_market.db"
+API_KEY = "sk_live_erarta_test_7f3a9c2d"
 CATALOG_BASE_URL = "https://shop.erarta.com/ru/shop/catalogue/original/"
 
 
