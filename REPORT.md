@@ -47,7 +47,8 @@
 | ANALYTICS-1 | Удалён фильтр `Artwork.status == ArtworkStatus.DONE.value`                                                        | `erarta_scraper/analytics.py`        |
 | ANALYTICS-2 | Удалён фильтр `Artwork.status == ArtworkStatus.DONE.value`; сохранён фильтр `price IS NOT NULL`                   | `erarta_scraper/analytics.py`        |
 | TEST-1      | Добавлен `ArtworkRepository.get_by_url()` без соответствующего теста в diff                                       | `erarta_scraper/db/repositories.py`  |
-Эталон для bait будет таким:
+
+Эталон для bait:
 
 | ID     | Корректный фрагмент                                                                                                | Чего не должен делать бот                                                      |
 | ------ | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |

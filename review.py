@@ -144,7 +144,7 @@ def main():
             timeout=60.0
         )
         response = client.chat.completions.create(
-            model="deepseek/deepseek-v4-flash", # Оставляем модель DeepSeek
+            model="deepseek/deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": "Ты — строгий код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
