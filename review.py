@@ -12,6 +12,7 @@ def parse_diff(diff_text):
     formatted_diff = []
     current_file = None
     current_line_new = 0
+    line_indents = {}
     
     # Игнорирование бинарников
     for line in diff_text.splitlines():
@@ -20,9 +21,9 @@ def parse_diff(diff_text):
             continue
         
         if line.startswith('diff --git'):
-            match = re.match(r'^diff --git a/(.+) b/(.+)$', line)
+            match = re.search(r'b/(.+)', line)
             if match:
-                current_file = match.group(2)
+                current_file = match.group(1)
                 formatted_diff.append(f"\n=== ФАЙЛ: {current_file} ===")
             else:
                 current_file = None
@@ -41,19 +42,53 @@ def parse_diff(diff_text):
         
         # Нумерация строк для модели
         if line.startswith('+'):
+            code_line = line[1:] 
+            indent = code_line[:len(code_line) - len(code_line.lstrip(' \t'))]
+            line_indents[(current_file, current_line_new)] = indent
+
             formatted_diff.append(f"[{current_line_new}] {line}")
             valid_lines.add((current_file, current_line_new))
             current_line_new += 1
         elif line.startswith('-'):
             formatted_diff.append(f"[---] {line}")
         elif line.startswith(' '):
+            code_line = line[1:]
+            indent = code_line[:len(code_line) - len(code_line.lstrip(' \t'))]
+            line_indents[(current_file, current_line_new)] = indent
+
             formatted_diff.append(f"[{current_line_new}] {line}")
             valid_lines.add((current_file, current_line_new))
             current_line_new += 1
         else:
             formatted_diff.append(line)
 
-    return "\n".join(formatted_diff), valid_lines
+    return "\n".join(formatted_diff), valid_lines, line_indents
+
+def apply_suggestion_indent(suggestion, base_indent):
+    if not isinstance(suggestion, str) or not suggestion.strip():
+        return suggestion
+
+    lines = suggestion.splitlines()
+
+    # Находится общий отступ, который модель могла добавить всему блоку.
+    non_empty = [line for line in lines if line.strip()]
+    if not non_empty:
+        return suggestion
+
+    common_indent = min(
+        len(line) - len(line.lstrip(' \t'))
+        for line in non_empty
+    )
+
+    # Убирается общий отступ модели и добавляем отступ исходной строки.
+    result = []
+    for line in lines:
+        if line.strip():
+            result.append(base_indent + line[common_indent:])
+        else:
+            result.append(line)
+
+    return "\n".join(result)
 
 def main():
     if len(sys.argv) < 2:
@@ -72,7 +107,7 @@ def main():
         print(json.dumps({"summary": "Нет изменений для проверки", "comments": []}))
         return
 
-    formatted_diff, valid_lines = parse_diff(raw_diff)
+    formatted_diff, valid_lines, line_indents = parse_diff(raw_diff)
 
     # Порог на размер diff
     diff_lines = [
@@ -119,17 +154,12 @@ def main():
      }
      }]}}
 
-ПРАВИЛА ДЛЯ SUGGESTION:
-1. В поле "suggestion" пиши только чистый код для замены. 
-2. НИКАКИХ слов, объяснений или фраз вроде "Вот исправленный код".
-3. НЕ используй markdown-разметку (не пиши ```python в начале).
-4. СТРОГО СОХРАНЯЙ оригинальные отступы (пробелы) тех строк, которые ты заменяешь. Если оригинал начинается с 4 пробелов, твой suggestion тоже должен начинаться с 4 пробелов.
-
-
 Инструкции:
 {instructions}
 
 Вот diff. Числа в квадратных скобках [12] — это номера строк в новой версии файла. Используй ТОЛЬКО ИХ для поля "line".
+Для поля "suggestion" верни исправленный код с сохранением относительных отступов внутри блока.
+Не добавляй общий отступ строки из diff перед каждой строкой suggestion: скрипт добавит его автоматически.
 {formatted_diff}
 """
 
@@ -151,7 +181,7 @@ def main():
             timeout=60.0
         )
         response = client.chat.completions.create(
-            model="deepseek/deepseek-v4-flash",
+            model="deepseek/deepseek-v4-flash", # Оставляем модель DeepSeek
             messages=[
                 {"role": "system", "content": "Ты — код-ревьюер, который возвращает только JSON."},
                 {"role": "user", "content": prompt}
@@ -203,6 +233,7 @@ def main():
         for c in content.get('comments', []):
             if not isinstance(c, dict):
                 continue
+
             file_path = c.get('file')
             line_num = c.get('line')
 
@@ -211,19 +242,17 @@ def main():
             except (TypeError, ValueError):
                 line_num = None
 
-            print(
-                f"[DEBUG] file={file_path!r}, "
-                f"line={line_num!r}, "
-                f"type={type(line_num).__name__}, "
-                f"valid={(file_path, line_num) in valid_lines}",
-                file=sys.stderr
-            )
             if (file_path, line_num) in valid_lines:
-                c['line'] = line_num
+                suggestion = c.get('suggestion')
+
+                if isinstance(suggestion, str) and suggestion.strip():
+                    base_indent = line_indents.get((file_path, line_num), '')
+                    c['suggestion'] = apply_suggestion_indent(suggestion, base_indent)
+
                 valid_comments.append(c)
             else:
                 fallback_messages.append(
-                    f"Файл `{file_path}`, строка {line_num}: {c.get('message')}"
+                    f"Файл `{file_path}`, строка {c.get('line')}: {c.get('message')}"
                 )
 
         if fallback_messages:
