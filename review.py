@@ -243,6 +243,7 @@ def main():
                 line_num = None
 
             if (file_path, line_num) in valid_lines:
+                c['line'] = line_num  
                 suggestion = c.get('suggestion')
 
                 if isinstance(suggestion, str) and suggestion.strip():
